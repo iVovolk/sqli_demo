@@ -1,0 +1,7 @@
+.idea
+.env
+/secrets/*
+!/secrets/.gitkeep
+/app/log/*
+!/app/log/.gitkeep
+/app/web/flag.secret
