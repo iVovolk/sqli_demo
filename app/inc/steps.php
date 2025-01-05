@@ -373,6 +373,15 @@ HTML;
     exit();
 }
 
+const FLAG_FORM = <<<HTML
+    <form action="" method="post">
+        <label for="flag">
+            <input type="text" name="flag" id="flag" placeholder="флаг сюда">
+        </label>
+        <button type="submit">Предъявить</button>
+    </form>
+HTML;
+
 function handleStep4(mysqli $mysqli): array
 {
     if (!isset($_COOKIE['not_suspicious'])) {
@@ -396,14 +405,6 @@ function handleStep4(mysqli $mysqli): array
         </section>
 HTML;
     if ($action === 'validate') {
-        $form = <<<HTML
-            <form action="" method="post">
-                <label for="flag">
-                    <input type="text" name="flag" id="flag" placeholder="флаг сюда">
-                </label>
-                <button type="submit">Предъявить</button>
-            </form>
-HTML;
         if (!empty($_POST['flag'])) {
             $logSql = "insert into logs (ip, cookie, flag) values (?, ?, ?)";
             $cookie = str_ireplace('create', '🗿', $_COOKIE['not_suspicious']);
@@ -423,7 +424,7 @@ HTML;
             } catch (\Throwable $e) {
                 return [
                     'solved' => false,
-                    'content' => "$links\n$form\n<div class='error'>Какая-то ошибка</div>",
+                    'content' => "$links\n" . FLAG_FORM . "\n<div class='error'>Какая-то ошибка</div>",
                 ];
             }
             if (!empty($r)) {
@@ -432,7 +433,7 @@ HTML;
         }
         return [
             'solved' => false,
-            'content' => "$links\n$form",
+            'content' => "$links\n" . FLAG_FORM,
         ];
     }
 
@@ -510,6 +511,17 @@ HTML;
     exit();
 }
 
-
-
-
+function handleStep5(mysqli $mysqli): array
+{
+    $flagFile = '../web/flag.secret';
+    if (!is_file($flagFile) || !is_readable($flagFile)) {
+        exit('Уровень не настроен');
+    }
+    if (!empty($_POST['flag']) && trim(file_get_contents($flagFile)) === $_POST['flag']) {
+        return ['solved' => true, 'content' => null];
+    }
+    return [
+        'solved' => false,
+        'content' => FLAG_FORM,
+    ];
+}
