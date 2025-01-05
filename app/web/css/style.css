@@ -124,11 +124,39 @@ section.jokes .intro {
   margin: 10px 0;
 }
 
-table.filtered {
+table {
   margin: 0 auto;
+}
+
+table.filtered {
   width: 40%;
 }
 
-table.filtered tr:nth-child(even) {
+table.striped tr:nth-child(even) {
   background-color: #f2f2f2;
+}
+
+table.logs {
+  max-width: 90%;
+  word-break: break-all;
+}
+
+table.logs td {
+  padding: 5px;
+}
+
+table.logs th:nth-child(1), table.logs th:nth-child(3) {
+  min-width: 130px;
+}
+
+table.logs th:nth-child(4) {
+  min-width: 65px;
+}
+
+table.logs button {
+  background-color: inherit;
+  border: none;
+  text-decoration: none;
+  outline: none;
+  cursor: pointer;
 }

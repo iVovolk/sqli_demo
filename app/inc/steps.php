@@ -29,7 +29,8 @@ const STEPS = [
     ],
     [
         'level' => 'hard',
-        'title' => 'Шутки конфились. Флаг в файле flag.secret.',
+        'title' => 'Футки кончились. Флаг в файле flag.secret.',
+        'handler' => 'handleStep5',
     ],
 ];
 
@@ -141,6 +142,12 @@ HTML;
     }
     if ($action === 'jokes') {
         if (!empty($_GET['id'])) {
+            if (str_contains(mb_strtolower($_GET['id']), 'cookie')) {
+                return [
+                    'solved' => false,
+                    'content' => "$links\n<img src='/img/cook.jpg' alt='По тонкому льду!'/>",
+                ];
+            }
             $q = "select * from flat_jokes where id={$_GET['id']}";
             try {
                 $res = $mysqli->query($q);
@@ -148,7 +155,7 @@ HTML;
             } catch (\Throwable $e) {
                 return [
                     'solved' => false,
-                    'content' => "$links\n" . "\n<div class='error'>Какая-то ошибка</div>",
+                    'content' => "$links\n<div class='error'>Какая-то ошибка</div>",
                 ];
             }
             if (empty($r)) {
@@ -245,6 +252,7 @@ const HARD_BANNED = [
     'information',
     'schema',
     'from_base64',
+    'cookies',
     'as',
     '/',
     '\\',
@@ -305,7 +313,7 @@ HTML;
     if ($action === 'filtered') {
         $form = <<<HTML
             <p>Список внизу неполный. Можешь воспользоваться формой, чтобы проверить нужные ключевые слова.</p>
-            <p>Ах, да. Они же зпрещены... Ну, разберешься.</p> 
+            <p>Ах, да. Они же зпрещены... Ну, разберёшься.</p> 
             <br>
             <form action="" method="get">
                 <label for="term">
@@ -358,7 +366,7 @@ HTML;
         }
         return [
             'solved' => false,
-            'content' => "$links\n$form\n$searched\n<table class='filtered'>$table</table>",
+            'content' => "$links\n$form\n$searched\n<table class='filtered striped'>$table</table>",
         ];
     }
     header("Location: /?s=3&a=validate", true, 301);
@@ -367,11 +375,9 @@ HTML;
 
 function handleStep4(mysqli $mysqli): array
 {
-    //real_escape_string
-    return ['solved' => false, 'content' => ''];
     if (!isset($_COOKIE['not_suspicious'])) {
-        $cookieVal = uniqid();
-        $flag = 'flag[' . md5(rand()) . ']';
+        $cookieVal = uniqid('', true);
+        $flag = 'flag[' . md5(mt_rand()) . ']';
         $q = "insert into cookies (val, flag) values ('$cookieVal', '$flag')";
         try {
             $mysqli->query($q);
@@ -380,12 +386,128 @@ function handleStep4(mysqli $mysqli): array
         }
         setcookie('not_suspicious', $cookieVal);
     }
+    $action = empty($_GET['a']) ? 'validate' : $_GET['a'];
+    $validateActiveClass = ($action === 'validate') ? 'active' : '';
+    $logsActiveClass = ($action === 'logs') ? 'active' : '';
+    $links = <<<HTML
+        <section class="links">
+            <a href="/?s=4&a=validate" class="$validateActiveClass">Проверка</a>
+            <a href="/?s=4&a=logs" class="$logsActiveClass">Логи</a>
+        </section>
+HTML;
+    if ($action === 'validate') {
+        $form = <<<HTML
+            <form action="" method="post">
+                <label for="flag">
+                    <input type="text" name="flag" id="flag" placeholder="флаг сюда">
+                </label>
+                <button type="submit">Предъявить</button>
+            </form>
+HTML;
+        if (!empty($_POST['flag'])) {
+            $logSql = "insert into logs (ip, cookie, flag) values (?, ?, ?)";
+            $cookie = str_ireplace('create', '🗿', $_COOKIE['not_suspicious']);
+            try {
+                $logStmt = $mysqli->prepare($logSql);
+                $logStmt->bind_param('sss', $_SERVER['REMOTE_ADDR'], $cookie, $_POST['flag']);
+                $logStmt->execute();
+            } catch (\Throwable $e) {
+                //don't care
+            }
+            $checkSql = "select flag from cookies where flag = ? limit 1";
+            try {
+                $stmt = $mysqli->prepare($checkSql);
+                $stmt->bind_param('s', $_POST['flag']);
+                $stmt->execute();
+                $r = $stmt->get_result()?->fetch_column();
+            } catch (\Throwable $e) {
+                return [
+                    'solved' => false,
+                    'content' => "$links\n$form\n<div class='error'>Какая-то ошибка</div>",
+                ];
+            }
+            if (!empty($r)) {
+                return ['solved' => true, 'content' => null];
+            }
+        }
+        return [
+            'solved' => false,
+            'content' => "$links\n$form",
+        ];
+    }
 
+    if ($action === 'logs') {
+        $logsSql = "select * from logs order by id desc";
+        try {
+            $mysqli->real_query($logsSql);
+            $rows = $mysqli->use_result();
+        } catch (\Throwable $e) {
+            return [
+                'solved' => false,
+                'content' => "$links\n<div class='error'>Какая-то ошибка</div>",
+            ];
+        }
+        $stripes = "";
+        foreach ($rows as $row) {
+            $cookie = htmlspecialchars($row['cookie'], ENT_QUOTES | ENT_HTML5);
+            if (str_contains(mb_strtolower($row['flag']), 'flag')) {
+                $flag = '***тут был флаг***';
+            } else {
+                $flag = htmlspecialchars($row['flag'], ENT_QUOTES | ENT_HTML5);
+            }
+            $ip = htmlspecialchars($row['ip'], ENT_QUOTES | ENT_HTML5);
+            $id = $row['id'];
+            $stripes .= <<<HTML
+                <tr>
+                    <td>$ip</td>
+                    <td>$cookie</td>
+                    <td>$flag</td>
+                    <td>
+                        <form action="/?s=4&a=del" method="post">
+                            <input type="hidden" name="id" value="$id">
+                            <button type="submit">❌</button>
+                        </form>
+                    </td>
+                </tr>            
+HTML;
+        }
+        $table = <<<HTML
+            <p>Система записывает все твои попытки и грязные трюки.</p>
+            <p>Но мы же не в интернете: из этих логов, при желании, можно удалить навсегда.</p>
+            <table class="striped logs">
+                <thead>
+                    <tr><th>IP</th><th>Печенька</th><th>Может флаг</th><th>Удалить</th></tr>
+                </thead>
+                <tbody>$stripes</tbody>
+            </table>
+HTML;
+        return [
+            'solved' => false,
+            'content' => "$links\n$table",
+        ];
+    }
 
-    return [
-        'solved' => false,
-        'content' => 'asdad',
-    ];
+    if ($action === 'del') {
+        $id = (int)$_POST['id'];
+        $c = $mysqli->query("select cookie from logs where id = $id")->fetch_column();
+        $sql = "delete from logs where cookie = '$c'";
+        try {
+            $mysqli->multi_query($sql);
+            do {
+                $mysqli->store_result();
+            } while ($mysqli->more_results() && $mysqli->next_result());
+        } catch (\Throwable $e) {
+            return [
+                'solved' => false,
+                'content' => "$links\n<div class='error'>Упс, не получилось удалить.</div>",
+            ];
+        }
+        header("Location: /?s=4&a=logs", true, 301);
+        exit();
+    }
+
+    header("Location: /?s=4&a=validate", true, 301);
+    exit();
 }
 
 

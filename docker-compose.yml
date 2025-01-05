@@ -18,7 +18,7 @@ services:
     build:
       context: ./sqli-fpm
     volumes:
-      - ${SQLI_PATH}:/var/www/sqli:delegated
+      - ${SQLI_PATH}:/var/www/sqli:delegated #удолить
       - ./secrets/flag.secret:/var/www/sqli/web/flag.secret:ro
     restart: always
     secrets:
@@ -40,7 +40,7 @@ services:
     image: mysql:latest
     container_name: sqli-db
     restart: always
-    ports:
+    ports: #удолить
       - "3316:3306"
     secrets:
       - mysql_pass
