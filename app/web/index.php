@@ -39,6 +39,10 @@ require_once "../inc/functions.php";
         <?= $renderedStep($currentStep) ?>
     </div>
 </section>
+<section class="footer">
+    <a href="https://github.com/iVovolk/sqli_demo" target="_blank">Исходники</a>
+    <a href="/help.html" target="_blank">Подсказки</a>
+</section>
 </body>
 </html>
 <?php ob_get_flush(); ?>

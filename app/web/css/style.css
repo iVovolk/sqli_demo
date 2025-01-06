@@ -160,3 +160,22 @@ table.logs button {
   outline: none;
   cursor: pointer;
 }
+
+section.footer {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  background-color: #f2f2f2;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  padding: 5px;
+}
+
+section.footer a {
+  text-decoration: none;
+  outline: none;
+  color: #474747;
+  flex-basis: 120px;
+}

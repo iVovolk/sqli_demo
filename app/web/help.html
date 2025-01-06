@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Разбираемся в SQLi</title>
+    <style>
+      body {
+        padding: 15px;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      .disclaimer {
+        background-color: #ffd9d93d;
+        padding: 5px 10px 10px 10px;
+        border: solid 1px red;
+        border-radius: 5px;
+        font-size: 12px;
+      }
+
+      .disclaimer p {
+        margin: 3px 0;
+      }
+
+      .disclaimer h3 {
+        margin: 5px 0;
+      }
+
+      .container {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+      }
+
+      .main, .nav {
+        flex-basis: fit-content;
+      }
+
+      code {
+        background-color: #e7e7e7;
+        padding: 2px;
+        border-radius: 2px;
+      }
+    </style>
+</head>
+<body>
+<section class="disclaimer">
+    <h3>Отказ от ответственности.</h3>
+    <p>Данный материал был написан в целях изучения темы SQLi и в рамках подготовки к собеседованию.</p>
+    <p>Неправомерный доступ к информации преследуются по
+        <a href="https://www.consultant.ru/document/cons_doc_LAW_10699/5c337673c261a026c476d578035ce68a0ae86da0/"
+           target="_blank">ст.
+            272 УК РФ</a>.</p>
+    <p>Любое тестирование компьютерных систем на проникновение и уязвимости должно осуществляться с письменного
+        согласия правообладателя и в строго ограниченном договором объеме.</p>
+    <p>Автор данного материала ни в какой мере не несёт ответственности за неправомерное использование материалов,
+        изложенных ниже.</p>
+    <p>Автор данного проекта не несёт ответственности за потенциальный ущерб, нанесенный хостинг провайдеру, в
+        результате возможных попыток неправомерного использования ресурсов и средств провайдера через возможное
+        превышение рамок эксплуатации уязвимостей, заложенных в проект для демонстрационных целей.</p>
+    <p>Материалы и код проекта созданы в демонстрационных и образовательных целях.</p>
+</section>
+<div class="container">
+    <section class="main">
+        <section id="intro">
+            <h3>Что такое вообще SQLi?</h3>
+            <p>Это серверная уязвимость, которая возникает из-за неиспользования
+                <a href="https://cheatsheetseries.owasp.org/cheatsheets/Query_Parameterization_Cheat_Sheet.html"
+                   target="_blank">параметризованных
+                    запросов</a> и когда пользовательский ввод без должной обработки попадает в запрос.</p>
+            <p>Стандартный и самый простой пример - авторизация на сайте. Допустим, мы ищем пользователя в БД каким-то
+                таким
+                запросом:
+                <code>SELECT FROM users WHERE username='' AND password='';</code>. И допустим, по какой-то причине, мы
+                верим
+                в
+                людей
+                и
+                совершенно не обеззараживаем и не чистим входящие данные из формы авторизации.</p>
+            <p>Результирующий запрос будет примерно такой (PHP):
+                <code>SELECT FROM users WHERE username='{$_POST["username"]}' AND
+                    password='{$_POST["password"]}';</code>.
+                Все, что остается сделать атакующему - в поле <code>username</code> вписать что-то типа <code>admin' or
+                    1=1--
+                    -</code>.
+                И запрос, который выполнит СУБД, будет таким:
+                <code>SELECT FROM users WHERE username='admin' or 1=1-- -' AND password='gibberish';</code>.
+                Эффективная часть запроса здесь - <code>SELECT FROM users WHERE username='admin' or 1=1;</code>. А все
+                остальное
+                мы
+                отсекли с помощью универсального комментария <code>-- -</code>.</p>
+            <p>Как нетрудно догадаться, в данном виде системе вообще не интересно что мы ввели в поле пароля. Это просто
+                игнорируется.</p>
+            <p>Так получается классически обход авторизации с помощью SQLi.</p>
+        </section>
+        <section id="impact">
+            <h3>Чего еще можно добиться с помощью SQLi?</h3>
+            <p>Конечный результат очень зависит от:</p>
+            <ol>
+                <li>типа и версии СУБД;</li>
+                <li>типа и версии ПО, которое выполняет функции веб-сервера;</li>
+                <li>типа и версии серверной ОС;</li>
+                <li>настроек безопасности СУБД;</li>
+                <li>привилегий пользователя, от имени которого выполняются подконтрольные атакующему запросы;</li>
+                <li>наличия или отсутствия <a href="https://en.wikipedia.org/wiki/Web_application_firewall"
+                                              target="_blank">WAF</a>;
+                </li>
+                <li>и других факторов.</li>
+            </ol>
+            <p>В худшем для атакующего случае, он будет способен получить доступ к информации в базе данных, к которой
+                он
+                его
+                иметь
+                не должен. Это может обернуться репутационными и финансовыми потерями для компании.</p>
+            <p>В лучшем для атакующего случае, он будет способен развить атаку до
+                <a href="https://www.imperva.com/learn/application-security/remote-code-execution/"
+                   target="_blank">RCE</a>.
+                И
+                там,
+                в зависимости от настроек сервера и навыков, сможет либо скомпрометировать сервер, либо всю
+                корпоративную
+                сеть.
+            </p>
+        </section>
+        <section id="types">
+            <h4>Типы инъекций.</h4>
+            <p>Глобально, я бы разделил так:</p>
+            <ol>
+                <li>не слепые (мы видим результат запроса на странице):
+                    <ol>
+                        <li>
+                            <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection#union-based-injection"
+                               target="_blank">UNION инъекции</a>;
+                        </li>
+                        <li>
+                            <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection#error-based-injection"
+                               target="_blank">эксфильтрация данных через сообщение об ошибке (error based)</a>;
+                        </li>
+                    </ol>
+                </li>
+                <li>
+                    <a href="https://blog.qualys.com/product-tech/2023/02/09/blind-sql-injection-content-based-time-based-approaches"
+                       target="_blank">слепые</a>:
+                    <ol>
+                        <li>
+                            <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection#time-based-injection"
+                               target="_blank">извлечение по времени ответа (time based)</a>;
+                        </li>
+                        <li>извлечение по содержимому ответа (content based);</li>
+                    </ol>
+                </li>
+                <li>внутрисервисные (in-band);</li>
+                <li><a href="#oob">межсервисные (out-of-band)</a>;</li>
+                <li>первого порядка;</li>
+                <li>
+                    <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection#second-order-sql-injection"
+                       target="_blank">второго порядка</a>;
+                </li>
+                <li>
+                    <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection#routed-injection"
+                       target="_blank">перенаправленные (routed)</a>.
+                </li>
+            </ol>
+            <p>Стоит добавить, что это не полный и не эксклюзивный список. Наверное, все из типов выше могут сочетаться
+                в
+                разных
+                видах и
+                пропорциях. Наверняка, где-то существует одна Out-Of-Band Routed Blind Second Order Union Based
+                инъекция.
+                Другой
+                вопрос,
+                как её найти...</p>
+            <p>Об этом и продолжим.</p>
+        </section>
+        <section id="entry-point">
+            <h3>Определение точки инъекции.</h3>
+            <p>Входной точкой может служить не только поле формы, но и GET параметр, различные заголовки (Referrer,
+                Cookie),
+                значение поля в XML или JSON теле запроса. Для начала, стоит идентифицировать как можно больше мест,
+                в которых потенциально возможна атака.</p>
+        </section>
+        <section id="poc">
+            <h3>Подтверждение наличия уязвимости. POC (Proof of concept)</h3>
+            <p>В самом простом случае, достаточно вставить, например, <code>'</code> или <code>"</code> в выбранное
+                место.
+            </p>
+            <p>Кавычки используются для отделения управляющих конструкций запроса от простых строк.
+                Добавляя кавычку, мы нарушаем структуру запроса, вызывая ошибку на сервере.</p>
+            <p>Детально
+                <a href="https://book.hacktricks.wiki/en/pentesting-web/sql-injection/index.html#entry-point-detection"
+                   target="_blank">тут</a> и
+                <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection#entry-point-detection"
+                   target="_blank">тут</a>.
+            </p>
+            <p>Скорее всего, на данном этапе будет понятно, к какому <a href="#types">типу</a> инъекции уязвимо
+                приложение.
+            </p>
+            <p>От типа напрямую зависит, насколько долгим и сложным будет процесс извлечения данных.</p>
+            <p>Больше всего времени и запросов потребуется, если приложение уязвимо к слепой атаке с извлечением по
+                времени
+                ответа. </p>
+        </section>
+        <section id="dbms">
+            <h3>Определение типа базы данных.</h3>
+            <p>После подтверждения наличия уязвимости, стоит определить тип СУБД (DBMS). Это необходимо для того, чтобы
+                сразу
+                очертить рамки доступных функций и методов.</p>
+            <p>Например, Oracle не позволит выполнить <code>SELECT</code> запрос, если в нем нет
+                <code>FROM</code>. Для обхода этого ограничения используется "таблица-затычка" <code>dual</code>. А в
+                MySQL(MariaDB) и PostgreSQL можно писать просто <code>SELECT 1;</code>.</p>
+            <p>Крайне полезно будет знать, каким образом в текущей СУБД обозначаются
+                <a href="https://book.hacktricks.wiki/en/pentesting-web/sql-injection/index.html#comments"
+                   target="_blank">комментарии</a>.</p>
+            <p>Почти везде, в качестве однострочного комментария, можно использовать <code>--</code>. Но только чтобы
+                это
+                заработало в MySQL, в конце нужно обязательно добавить пробел: <code>-- </code>.</p>
+            <p>Для определения типа СУБД, можно воспользоваться списком специфичных команд
+                <a href="https://book.hacktricks.wiki/en/pentesting-web/sql-injection/index.html#identifying-back-end"
+                   target="_blank">тут</a> или
+                <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection#dbms-identification"
+                   target="_blank">тут</a>.</p>
+            <p>
+                <a href="https://exploit-notes.hdks.org/exploit/web/security-risk/sql-injection-cheat-sheet/#version-detection"
+                   target="_blank">Определение конкретной версии</a> так же отличается от вендора к вендору. </p>
+            <p>В общем, знание типа и версии DBMS на сервере упростит задачу развития атаки.</p>
+        </section>
+        <section id="escalation">
+            <h3>Развитие атаки.</h3>
+            <p>После подтверждения существования уязвимости и идентификации бекенда, стоит изучить, что за пользователь
+                нам
+                доступен.</p>
+            <p>От привилегий напрямую зависит то, насколько далеко атакующий сможет развить атаку.</p>
+            <p>Попытаться получить эту информацию можно с помощью команд из
+                <a href="https://pentestmonkey.net/cheat-sheet/sql-injection/mssql-sql-injection-cheat-sheet"
+                   target="_blank">этой
+                    таблицы</a>.</p>
+            <p>Для получения информации о таблицах и колонках в них, могут помочь
+                <a href="https://book.hacktricks.wiki/en/pentesting-web/sql-injection/index.html#extract-database-names-table-names-and-column-names"
+                   target="_blank">эти</a> и
+                <a href="https://exploit-notes.hdks.org/exploit/web/security-risk/sql-injection-cheat-sheet/#list-table-names"
+                   target="_blank">эти</a> команды.</p>
+
+            <section id="rce">
+                <h5>RCE</h5>
+                <p>Если атакующему повезло, у него пользователь с нужными привилегиями или вообще root, то он может
+                    попробовать
+                    выйти за пределы СУБД и расширить поверхность атаки до всего сервера или даже дальше. Подобные
+                    примеры
+                    описаны
+                    <a href="https://book.hacktricks.wiki/en/network-services-pentesting/pentesting-mysql.html#mysql-arbitrary-read-file-by-client"
+                       target="_blank">здесь</a> и
+                    <a href="https://karmainsecurity.com/impresscms-from-unauthenticated-sqli-to-rce"
+                       target="_blank">здесь</a>.
+                </p>
+            </section>
+            <section id="oob">
+                <h5>Out Of Band</h5>
+                <p>А если не повезло и вытащить данные не получается ни с помощью Union-based, ни с помощью Time-based,
+                    то
+                    можно
+                    попробовать прибегнуть к атаке типа Out-Of-Band.</p>
+                <p>Суть в её в том, чтобы заставить СУБД выполнить запрос к внешнему ресурсу. Это может быть DNS или
+                    HTTP(s) запрос. Здесь всё еще сильнее различается от СУБД к СУБД.</p>
+                <p>Например, чтобы выполнить такую атаку на MySQL, работающем на Linux сервере, должно сойтись много
+                    звезд:</p>
+                <ol>
+                    <li>на сервере должны быть установлены и настроены службы SMB, так как атака опирается на данный
+                        протокол;
+                    </li>
+                    <li>версия MySQL должна быть ниже 5.5.53 (2016 год), либо настройка
+                        <code>global.secure_file_priv</code>
+                        должна быть равна пустой строке;
+                    </li>
+                    <li>пользователь, доступный атакующему, должен иметь привилегию <code>FILE</code> либо должен иметь
+                        <code>GRANT
+                            OPTION</code> в рамках сервера.
+                    </li>
+                </ol>
+                <p>Подробнее обо всем этом можно почитать по ссылкам:</p>
+                <ol>
+                    <li><a href="https://www.exploit-db.com/docs/english/41273-mysql-out-of-band-hacking.pdf"
+                           target="_blank">MySQL Out-of-Band Hacking</a></li>
+                    <li><a href="https://pentest.blog/data-ex-filtration-with-dns-in-sqli-attacks/" target="_blank">Data
+                        Exfiltration with DNS in SQLi attacks</a></li>
+                    <li>
+                        <a href="https://www.invicti.com/learn/out-of-band-sql-injection-oob-sqli/" target="_blank">Out-of-band
+                            SQL injection</a>
+                    </li>
+                    <li>
+                        <a href="https://sqlwiki.netspi.com/attackQueries/dataExfiltration/" target="_blank">Data
+                            Exfiltration</a>
+                    </li>
+                </ol>
+
+
+            </section>
+        </section>
+        <section id="filter-bypass">
+            <h3>Обход фильтров и WAF.</h3>
+            <p>Кто-то полагается на спец. средства, отсекающие все подозрительные запросы ещё до того, как они попадут в
+                СУБД.
+                Кто-то считает, что хитрее всех, и пишет сложные регулярные выражения, чтобы обезопасить запросы.</p>
+            <p>А кто-то всё-таки пользуется параметризованными запросами (Second Order передаёт привет).</p>
+            <p>Но штука в том, что на каждый фильтр найдется payload с резьбой.</p>
+            <p>Ниже список ссылок почти на все случаи жизни:</p>
+            <ol>
+                <li><a href="https://websec.wordpress.com/wp-content/uploads/2010/11/sqli2.pdf" target="_blank">старый и
+                    только
+                    по MySQL, но
+                    очень крутой материал</a>;
+                </li>
+                <li><a href="https://owasp.org/www-community/attacks/SQL_Injection_Bypassing_WAF" target="_blank">общий
+                    список
+                    методик обхода WAF</a>;
+                </li>
+                <li>
+                    <a href="https://github.com/kleiton0x00/Advanced-SQL-Injection-Cheatsheet/blob/main/MySQL%20-%20Stabilise%20%26%20Bypass/README.md"
+                       target="_blank">oбходим фильтр пробелов и не только</a>;
+                </li>
+                <li>
+                    <a href="https://stackoverflow.com/questions/5741187/sql-injection-that-gets-around-mysql-real-escape-string/12118602#12118602"
+                       target="_blank">обходим mysql_real_escape_string (НЕ mysqli_*). Крайний случай с неправильными
+                        настройками
+                        кодировок</a>;
+                </li>
+                <li>
+                    <a href="https://hacktricks.boitatech.com.br/pentesting-web/unicode-normalization-vulnerability#sql-injection-filter-bypass"
+                       target="_blank">еще обход фильтров через игры с кодировками</a>;
+                </li>
+                <li><a href="https://www.dionach.com/fun-with-sql-injection-using-unicode-smuggling/" target="_blank">еще
+                    Unicode
+                    Smuggling</a>;
+                </li>
+                <li><a href="https://gist.github.com/cyberheartmi9/b4a4ff0f691be6b5c866450563258e86" target="_blank">еще
+                    один
+                    интересный
+                    труд</a>;
+                </li>
+                <li><a href="https://www.programmersought.com/article/51923112822/" target="_blank">обход запрета
+                    запятой</a>.
+                </li>
+
+            </ol>
+        </section>
+        <section id="conclusion">
+            <h3>Заключение.</h3>
+            <p>Мир SQL инъекций широк и разнообразен. Ущерб от них может быть катастрофическим.</p>
+            <p>Но, пока я писал код этого стенда, мне показалось, что, используя современные версии языков и библиотек,
+                сложнее
+                написать код с инъекцией, чем без неё.</p>
+            <p>Однако, согласно <a href="https://owasp.org/www-project-top-ten/" target="_blank">OWASP TOP 10</a>,
+                инъекции
+                в
+                общем и SQLi среди них, занимают 3 место (на 2021 год).</p>
+            <p>Так что же делать? Я бы посоветовал:</p>
+            <ol>
+                <li>следить за актуальностью ПО;</li>
+                <li>правильно хранить секретики;</li>
+                <li>придерживаться принципа минимальных привилегий;</li>
+                <li>не игнорировать настройки безопасности, не оставлять все по-умолчанию или лучше отдать это знающим
+                    людям;
+                </li>
+                <li>использовать параметризованные запросы!</li>
+            </ol>
+
+            <p>Вот еще некоторые ссылки, которыми я пользовался:</p>
+            <ol>
+
+                <li><a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection"
+                       target="_blank">PayloadsAllTheThings
+                    (запомни эту ссылку)</a></li>
+                <li><a href="https://book.hacktricks.wiki/en/pentesting-web/sql-injection/index.html"
+                       target="_blank">book.hacktricks.wiki</a></li>
+                <li><a href="https://www.invicti.com/blog/web-security/sql-injection-cheat-sheet/" target="_blank">www.invicti.com</a>
+                </li>
+                <li><a href="https://exploit-notes.hdks.org/exploit/web/security-risk/sql-injection-cheat-sheet/"
+                       target="_blank">exploit-notes.hdks.org</a></li>
+                <li><a href="https://www.cgisecurity.com/lib/advanced_sql_injection.pdf" target="_blank">Большой труд по
+                    SQL
+                    Server</a></li>
+                <li><a href="https://phpprofi.ru/blogs/post/35" target="_blank">Общая статейка на русском</a></li>
+            </ol>
+        </section>
+    </section>
+    <section class="nav">
+        <ul>
+            <li><a href="#intro">Что такое вообще SQLi?</a></li>
+            <li><a href="#impact">Чего еще можно добиться с помощью SQLi?</a></li>
+            <li><a href="#types">Типы инъекций.</a></li>
+            <li><a href="#entry-point">Определение точки инъекции.</a></li>
+            <li><a href="#poc">Подтверждение наличия уязвимости. POC (Proof of concept)</a></li>
+            <li><a href="#dbms">Определение типа базы данных.</a></li>
+            <li><a href="#escalation">Развитие атаки.</a>
+                <ul>
+                    <li><a href="#rce">RCE</a></li>
+                    <li><a href="#oob">Out Of Band</a></li>
+                </ul>
+            </li>
+            <li><a href="#filter-bypass">Обход фильтров и WAF.</a></li>
+            <li><a href="#conclusion">Заключение.</a></li>
+        </ul>
+    </section>
+</div>
+</body>
+</html>

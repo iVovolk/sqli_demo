@@ -5,8 +5,8 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ${SQLI_NGINX_CONF_PATH}:/etc/nginx/conf.d/sqli.conf
-      - ${SQLI_PATH}:/var/www/sqli:delegated
+      - ./nginx/sqli.conf:/etc/nginx/conf.d/sqli.conf:ro
+      - ./app:/var/www/sqli:delegated
     restart: always
     networks:
       - sqli-net
@@ -18,8 +18,8 @@ services:
     build:
       context: ./sqli-fpm
     volumes:
-      - ${SQLI_PATH}:/var/www/sqli:delegated #удолить
       - ./secrets/flag.secret:/var/www/sqli/web/flag.secret:ro
+      - ./app:/var/www/sqli
     restart: always
     secrets:
       - mysql_pass
@@ -40,8 +40,6 @@ services:
     image: mysql:latest
     container_name: sqli-db
     restart: always
-    ports: #удолить
-      - "3316:3306"
     secrets:
       - mysql_pass
       - mysql_root_pass
@@ -53,7 +51,7 @@ services:
       MYSQL_USER_FILE: /run/secrets/mysql_user
       MYSQL_PASSWORD_FILE: /run/secrets/mysql_pass
     volumes:
-      - ${SQLI_DATA_PATH}/db:/var/lib/mysql
+      - ${SQLI_DATA_PATH}/db:/var/lib/mysql:delegated
       - ${SQLI_DATA_PATH}/db-dump:/docker-entrypoint-initdb.d
     command: --innodb-flush-method=fsync --log-bin=binlog --binlog-format=ROW  --local_infile=1
     networks:
