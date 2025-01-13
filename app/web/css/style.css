@@ -1,25 +1,5 @@
-.roboto-regular {
-  font-family: "Roboto", serif;
-  font-weight: 400;
-  font-style: normal;
-}
-
-.roboto-bold {
-  font-family: "Roboto", serif;
-  font-weight: 700;
-  font-style: normal;
-}
-
-.roboto-regular-italic {
-  font-family: "Roboto", serif;
-  font-weight: 400;
-  font-style: italic;
-}
-
-.roboto-bold-italic {
-  font-family: "Roboto", serif;
-  font-weight: 700;
-  font-style: italic;
+body {
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 section.progress {

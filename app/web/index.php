@@ -23,18 +23,14 @@ require_once "../inc/functions.php";
     <meta name="author" content="https://github.com/iVovolk">
     <link rel="shortcut icon" href="/img/favicon.ico" type="image/x-icon">
     <link rel="icon" href="/img/favicon.ico" type="image/x-icon">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,400;0,700;1,400;1,700&display=swap"
-          rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="roboto-regular">
+<body>
 <section class="progress">
     <?= $renderedStepProgress($currentStep) ?>
 </section>
 <section class="container">
-    <h3 class="roboto-bold"><?= $stepTitle($currentStep) ?></h3>
+    <h3><?= $stepTitle($currentStep) ?></h3>
     <div class="step-content">
         <?= $renderedStep($currentStep) ?>
     </div>
