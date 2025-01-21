@@ -51,8 +51,8 @@ services:
       MYSQL_USER_FILE: /run/secrets/mysql_user
       MYSQL_PASSWORD_FILE: /run/secrets/mysql_pass
     volumes:
-      - ${SQLI_DATA_PATH}/db:/var/lib/mysql:delegated
-      - ${SQLI_DATA_PATH}/db-dump:/docker-entrypoint-initdb.d
+      - ${SQLI_DATA_PATH}:/var/lib/mysql:delegated
+      - ./init-db:/docker-entrypoint-initdb.d:ro
     command: --innodb-flush-method=fsync --log-bin=binlog --binlog-format=ROW  --local_infile=1
     networks:
       - sqli-net

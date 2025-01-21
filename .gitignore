@@ -5,3 +5,4 @@
 /app/log/*
 !/app/log/.gitkeep
 /app/web/flag.secret
+*.override.yml
