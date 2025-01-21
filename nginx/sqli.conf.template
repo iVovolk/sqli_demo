@@ -6,7 +6,7 @@ server {
 
     listen 80; ## listen for ipv4
 
-    server_name sqli.live;
+    server_name ${SQLI_SERVER_NAME};
     root        /var/www/sqli/web/;
     index       index.php;
 

@@ -4,8 +4,10 @@ services:
     container_name: sqli-nginx
     ports:
       - "80:80"
+    environment:
+      SQLI_SERVER_NAME: ${SERVER_NAME}
     volumes:
-      - ./nginx/sqli.conf:/etc/nginx/conf.d/sqli.conf:ro
+      - ./nginx/sqli.conf.template:/etc/nginx/templates/sqli.conf.template:ro
       - ./app:/var/www/sqli:delegated
     restart: always
     networks:
